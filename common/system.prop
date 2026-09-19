@@ -1,0 +1,3 @@
+# This file will be read by resetprop
+#HWUI Boost
+debug.hwui.disable_vsync=true

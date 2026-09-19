@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-profile="balanced">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>CPU Governor Manager</title>
+<style>
+  :root{
+    --bg:#08090b;
+    --surface-1:#111318;
+    --surface-2:#15171d;
+    --surface-3:#1c1f27;
+    --border:rgba(255,255,255,.08);
+    --border-strong:rgba(255,255,255,.16);
+    --text-1:#f2f3f5;
+    --text-2:#a4a9b4;
+    --text-3:#6c7280;
+    --success:#34d399;
+    --warning:#fbbf24;
+    --danger:#f87171;
+    --radius-sm:8px;
+    --radius-md:12px;
+    --radius-lg:20px;
+    --shadow-card:0 1px 0 rgba(255,255,255,.04) inset, 0 14px 40px -14px rgba(0,0,0,.7);
+    --shadow-btn:0 1px 0 rgba(255,255,255,.03) inset, 0 6px 18px -8px rgba(0,0,0,.5);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Vazirmatn","Iranian Sans",Tahoma,Roboto,sans-serif;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --glow-a:#8b7cf6;
+    --glow-b:#6366f1;
+    --pulse-dur:2.4s;
+  }
+  html[data-profile="cool"]{ --glow-a:#22d3ee; --glow-b:#0ea5e9; --pulse-dur:3.6s; }
+  html[data-profile="balanced"]{ --glow-a:#8b7cf6; --glow-b:#6366f1; --pulse-dur:2.4s; }
+  html[data-profile="warm"]{ --glow-a:#fb923c; --glow-b:#f43f5e; --pulse-dur:1.1s; }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--bg);
+    color:var(--text-1);
+    font-family:var(--font);
+    min-height:100vh;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;
+    -moz-user-select:none;
+    -ms-user-select:none;
+    user-select:none;
+    -webkit-touch-callout:none;
+    -webkit-user-drag:none;
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(255,255,255,.035) 0, transparent 40%),
+      radial-gradient(circle at 88% 92%, rgba(255,255,255,.03) 0, transparent 40%);
+    background-attachment:fixed;
+  }
+  ::selection{ background:transparent; }
+  ::-moz-selection{ background:transparent; }
+  input, textarea{ -webkit-user-select:text; user-select:text; }
+
+  /* ---------- Header ---------- */
+  .app-header{
+    position:relative;
+    overflow:hidden;
+    border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg, var(--surface-1), rgba(17,19,24,.4));
+    padding:20px 18px 22px;
+  }
+  .header-glow{
+    position:absolute;
+    inset:-60% -20% auto -20%;
+    height:220px;
+    background:radial-gradient(closest-side, var(--glow-a) 0%, var(--glow-b) 35%, transparent 72%);
+    filter:blur(46px);
+    opacity:.5;
+    animation:pulseGlow var(--pulse-dur) ease-in-out infinite;
+    pointer-events:none;
+    transition:background 0.6s ease;
+  }
+  @keyframes pulseGlow{
+    0%,100%{ opacity:.38; transform:scale(1) translateY(0); }
+    50%{ opacity:.75; transform:scale(1.12) translateY(4px); }
+  }
+  .header-inner{
+    position:relative;
+    z-index:1;
+    max-width:880px;
+    margin:0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .brand-icon{
+    width:42px; height:42px; flex:none;
+    border-radius:11px;
+    background:var(--surface-3);
+    border:1px solid var(--border-strong);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--shadow-btn);
+  }
+  .brand-icon svg{ width:22px; height:22px; stroke:var(--glow-a); transition:stroke .6s ease; }
+  .brand-text h1{ font-size:16px; margin:0 0 2px; font-weight:700; letter-spacing:-.01em; }
+  .brand-text p{ margin:0; font-size:12px; color:var(--text-3); font-family:var(--mono); letter-spacing:.01em; }
+
+  .conn-badge{
+    display:flex; align-items:center; gap:7px;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:6px 12px;
+    border-radius:999px;
+    font-size:12px;
+    color:var(--text-2);
+  }
+  .conn-badge .dot{ width:7px; height:7px; border-radius:50%; background:var(--text-3); flex:none; }
+  .conn-badge.on .dot{ background:var(--success); box-shadow:0 0 8px var(--success); }
+  .conn-badge.off .dot{ background:var(--warning); box-shadow:0 0 8px var(--warning); }
+
+  /* ---------- Layout ---------- */
+  .container{ max-width:880px; margin:0 auto; padding:20px 16px 100px; }
+  .demo-banner{
+    display:none;
+    align-items:center; gap:10px;
+    background:linear-gradient(90deg, rgba(251,191,36,.12), rgba(251,191,36,.04));
+    border:1px solid rgba(251,191,36,.35);
+    color:#fcd34d;
+    font-size:13px;
+    padding:10px 14px;
+    border-radius:var(--radius-md);
+    margin-bottom:16px;
+  }
+  .demo-banner.show{ display:flex; }
+
+  .card{
+    background:var(--surface-1);
+    border:1px solid var(--border);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-card);
+  }
+
+  /* ---------- Status Card ---------- */
+  .status-card{ padding:22px 22px 20px; margin-bottom:26px; }
+  .status-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
+  .eyebrow{ font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--text-3); font-weight:700; }
+  .cluster-summary{ font-size:12px; color:var(--text-2); background:var(--surface-3); border:1px solid var(--border); padding:4px 10px; border-radius:999px; }
+
+  .hero-gov{
+    font-size:clamp(30px,8vw,46px);
+    font-weight:800;
+    font-family:var(--mono);
+    letter-spacing:-.02em;
+    direction:ltr;
+    text-align:right;
+    color:var(--text-1);
+    line-height:1.1;
+    margin:2px 0 6px;
+    background:linear-gradient(90deg, var(--text-1), var(--text-1) 60%, var(--glow-a));
+    -webkit-background-clip:text;
+    background-clip:text;
+  }
+  .hero-gov.value-changed{ animation:valueChange .55s cubic-bezier(.2,.9,.2,1); }
+  @keyframes valueChange{
+    0%{ opacity:.25; transform:scale(.92) translateY(4px); filter:blur(3px); }
+    55%{ opacity:1; transform:scale(1.035); filter:blur(0); }
+    100%{ transform:scale(1); }
+  }
+  .hero-sub{ margin:0 0 16px; color:var(--text-2); font-size:13.5px; line-height:1.7; }
+
+  .chips-row{
+    display:flex; gap:8px; flex-wrap:wrap;
+    overflow-x:auto; scrollbar-width:none; padding-bottom:2px;
+  }
+  .chips-row::-webkit-scrollbar{ display:none; }
+  .chip{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12px; padding:6px 11px; border-radius:999px;
+    border:1px solid var(--border); background:var(--surface-2);
+    color:var(--text-2); white-space:nowrap; flex:none;
+  }
+  .chip.warn{ border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.08); color:#fcd34d; }
+  .chip.ok{ border-color:rgba(52,211,153,.4); background:rgba(52,211,153,.08); color:#6ee7b7; }
+  .chip b{ font-family:var(--mono); font-weight:700; direction:ltr; }
+
+  /* ---------- Section head ---------- */
+  .section-head{ display:flex; align-items:baseline; justify-content:space-between; margin:0 2px 12px; flex-wrap:wrap; gap:6px; }
+  .section-head h2{ font-size:14px; margin:0; font-weight:700; }
+  .section-head .hint{ font-size:11.5px; color:var(--text-3); }
+
+  /* ---------- Governor grid ---------- */
+  .gov-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(148px,1fr));
+    gap:10px;
+    margin-bottom:28px;
+    transition:opacity .25s ease;
+  }
+  .gov-grid.grid-busy{ opacity:.55; pointer-events:none; }
+  .gov-btn{
+    position:relative;
+    text-align:right;
+    background:var(--surface-1);
+    border:1px solid var(--border);
+    border-radius:var(--radius-md);
+    padding:14px 14px 13px;
+    cursor:pointer;
+    color:var(--text-1);
+    box-shadow:var(--shadow-btn);
+    transition:border-color .15s ease, transform .15s ease, background .15s ease;
+    display:flex; flex-direction:column; gap:8px;
+    font-family:var(--font);
+  }
+  .gov-btn:active{ transform:scale(.97); }
+  .gov-btn:hover{ border-color:var(--border-strong); background:var(--surface-2); }
+  .gov-btn.active{ border-color:var(--glow-a); box-shadow:0 0 0 1px var(--glow-a) inset, var(--shadow-btn); }
+  .gov-btn .top-row{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .gov-dot{ width:8px; height:8px; border-radius:50%; flex:none; }
+  .gov-dot.cool{ background:#22d3ee; box-shadow:0 0 6px #22d3ee; }
+  .gov-dot.balanced{ background:#8b7cf6; box-shadow:0 0 6px #8b7cf6; }
+  .gov-dot.warm{ background:#fb923c; box-shadow:0 0 6px #fb923c; }
+  .gov-name{ font-family:var(--mono); font-weight:700; font-size:14px; direction:ltr; text-align:right; }
+  .gov-desc{ font-size:11.5px; color:var(--text-3); line-height:1.5; }
+  .gov-check{ width:16px; height:16px; flex:none; color:var(--glow-a); }
+  .gov-check svg{ width:100%; height:100%; }
+  .gov-spinner{
+    width:14px; height:14px; border-radius:50%; flex:none;
+    border:2px solid rgba(255,255,255,.15); border-top-color:var(--glow-a);
+    animation:spin .7s linear infinite;
+  }
+
+  /* ---------- Details ---------- */
+  .details-toggle-wrap{ margin-bottom:8px; }
+  .details-toggle{
+    width:100%;
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--surface-1); border:1px solid var(--border);
+    border-radius:var(--radius-md); padding:13px 16px;
+    color:var(--text-1); font-size:13px; font-weight:600; cursor:pointer;
+    font-family:var(--font);
+  }
+  .details-toggle .chev{ width:16px; height:16px; transition:transform .25s ease; color:var(--text-3); }
+  .details-toggle.open .chev{ transform:rotate(180deg); }
+  .core-details{
+    max-height:0; overflow:hidden;
+    transition:max-height .35s ease;
+  }
+  .core-details.open{ max-height:1200px; }
+  .core-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(150px,1fr));
+    gap:10px;
+    padding-top:10px;
+  }
+  .core-item{
+    background:var(--surface-1);
+    border:1px solid var(--border);
+    border-right:3px solid var(--cluster-color, var(--glow-a));
+    border-radius:var(--radius-sm);
+    padding:11px 12px;
+  }
+  .core-item.mismatch{ border-color:rgba(251,191,36,.5); background:rgba(251,191,36,.05); }
+  .core-item .cid{ font-size:11px; color:var(--text-3); margin-bottom:4px; }
+  .core-item .cgov{ font-family:var(--mono); font-size:13px; font-weight:700; direction:ltr; text-align:right; margin-bottom:4px; }
+  .core-item .cfreq{ font-size:10.5px; color:var(--text-3); }
+
+  /* ---------- Footer ---------- */
+  .app-footer{
+    position:fixed; bottom:0; left:0; right:0;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px;
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg, rgba(8,9,11,.96), rgba(8,9,11,.7));
+    backdrop-filter:blur(10px);
+    border-top:1px solid var(--border);
+  }
+  .refresh-btn{
+    display:flex; align-items:center; gap:8px;
+    background:var(--surface-2);
+    border:1px solid var(--border-strong);
+    color:var(--text-1);
+    padding:10px 18px;
+    border-radius:999px;
+    font-size:13px; font-weight:600; cursor:pointer;
+    font-family:var(--font);
+  }
+  .refresh-btn:disabled{ opacity:.55; cursor:default; }
+  .refresh-icon-wrap{ display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; flex:none; }
+  .refresh-btn svg{ width:16px; height:16px; display:block; }
+  .refresh-icon-wrap.spinning{ animation:spin .8s linear infinite; }
+  .last-update{ font-size:11.5px; color:var(--text-3); }
+
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* ---------- Toasts ---------- */
+  .toast-stack{
+    position:fixed; top:14px; left:50%; transform:translateX(-50%);
+    z-index:999; display:flex; flex-direction:column; gap:8px;
+    width:min(92vw,420px);
+  }
+  .toast{
+    background:var(--surface-3);
+    border:1px solid var(--border-strong);
+    color:var(--text-1);
+    padding:11px 15px;
+    border-radius:var(--radius-sm);
+    font-size:12.5px;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,.6);
+    animation:toastIn .25s ease;
+  }
+  .toast.success{ border-color:rgba(52,211,153,.4); }
+  .toast.error{ border-color:rgba(248,113,113,.45); }
+  @keyframes toastIn{ from{ opacity:0; transform:translateY(-8px); } to{ opacity:1; transform:translateY(0); } }
+
+  /* ---------- Loader ---------- */
+  .init-loader{
+    position:fixed; inset:0; z-index:1000;
+    background:var(--bg);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    transition:opacity .3s ease, visibility .3s ease;
+  }
+  .init-loader.hide{ opacity:0; visibility:hidden; pointer-events:none; }
+  .loader-ring{
+    width:38px; height:38px; border-radius:50%;
+    border:3px solid rgba(255,255,255,.1); border-top-color:var(--glow-a);
+    animation:spin .8s linear infinite;
+  }
+  .init-loader p{ color:var(--text-3); font-size:13px; margin:0; }
+
+  @media (max-width:420px){
+    .gov-grid{ grid-template-columns:repeat(2,1fr); }
+    .core-grid{ grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="header-glow" id="headerGlow"></div>
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+            <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"></path>
+          </svg>
+        </span>
+        <div class="brand-text">
+          <h1>مدیریت گاورنر پردازنده</h1>
+          <p>CPU Governor Manager · KernelSU</p>
+        </div>
+      </div>
+      <div class="conn-badge" id="connBadge">
+        <span class="dot"></span>
+        <span id="connText">در حال اتصال…</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <div class="demo-banner" id="demoBanner">
+      <span>⚠️</span>
+      <span>حالت نمایشی فعال است — به شل روت KernelSU متصل نیستید، داده‌ها شبیه‌سازی‌شده‌اند.</span>
+    </div>
+
+    <section class="card status-card">
+      <div class="status-top">
+        <span class="eyebrow">گاورنر فعال (اکثریت هسته‌ها)</span>
+        <span class="cluster-summary" id="clusterSummary">—</span>
+      </div>
+      <div class="hero-gov" id="heroGov">در حال بارگذاری…</div>
+      <p class="hero-sub" id="heroSub">در حال اسکن هسته‌های پردازنده…</p>
+      <div class="chips-row" id="chipsRow"></div>
+    </section>
+
+    <div class="section-head">
+      <h2>انتخاب گاورنر</h2>
+      <span class="hint">برای اعمال آنی روی همه هسته‌ها ضربه بزنید</span>
+    </div>
+    <section class="gov-grid" id="govGrid">
+      <!-- injected -->
+    </section>
+
+    <div class="details-toggle-wrap">
+      <button class="details-toggle" id="detailsToggle">
+        <span>جزئیات تک‌تک هسته‌ها</span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="core-details" id="coreDetails">
+        <div class="core-grid" id="coreGrid"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="app-footer">
+    <button class="refresh-btn" id="refreshBtn">
+      <span class="refresh-icon-wrap" id="refreshIconWrap">
+        <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 2v6h-6"></path>
+          <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+          <path d="M3 22v-6h6"></path>
+          <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+        </svg>
+      </span>
+      <span>بروزرسانی</span>
+    </button>
+    <span class="last-update" id="lastUpdate">آخرین بروزرسانی: —</span>
+  </footer>
+
+  <div class="toast-stack" id="toastStack"></div>
+
+  <div class="init-loader" id="initLoader">
+    <div class="loader-ring"></div>
+    <p>در حال اسکن هسته‌های پردازنده…</p>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =========================================================
+     1) پل ارتباط با شل روت KernelSU (window.ksu)
+     مدیریت تایم‌اوت + کالبک اختصاصی برای هر فراخوانی
+  ========================================================= */
+  var KSU_TIMEOUT_MS = 12000;
+  var cbCounter = 0;
+
+  function hasKsu(){
+    return (typeof window.ksu !== "undefined") && typeof window.ksu.exec === "function";
+  }
+
+  function execShell(cmd, timeoutMs){
+    timeoutMs = timeoutMs || KSU_TIMEOUT_MS;
+    return new Promise(function(resolve, reject){
+      if (!hasKsu()){
+        reject(new Error("NO_KSU_BRIDGE"));
+        return;
+      }
+      var cbName = "__ksu_cb_" + Date.now() + "_" + (cbCounter++);
+      var settled = false;
+
+      var timer = setTimeout(function(){
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error("TIMEOUT"));
+      }, timeoutMs);
+
+      function cleanup(){
+        clearTimeout(timer);
+        try { delete window[cbName]; } catch(e){ window[cbName] = undefined; }
+      }
+
+      window[cbName] = function(errno, stdout, stderr){
+        if (settled) return;
+        settled = true;
+        cleanup();
+        var code = Number(errno);
+        if (code === 0 || isNaN(code)){
+          resolve({ stdout: stdout || "", stderr: stderr || "" });
+        } else {
+          var err = new Error("EXEC_ERROR");
+          err.errno = code; err.stdout = stdout; err.stderr = stderr;
+          reject(err);
+        }
+      };
+
+      try {
+        window.ksu.exec(cmd, cbName);
+      } catch(e){
+        cleanup();
+        reject(e);
+      }
+    });
+  }
+
+  function nativeToast(msg){
+    if (hasKsu() && typeof window.ksu.toast === "function"){
+      try { window.ksu.toast(msg); } catch(e){ /* ignore */ }
+    }
+  }
+
+  /* =========================================================
+     2) ابزارهای کمکی
+  ========================================================= */
+  function faDigits(input){
+    var map = {"0":"۰","1":"۱","2":"۲","3":"۳","4":"۴","5":"۵","6":"۶","7":"۷","8":"۸","9":"۹"};
+    return String(input).replace(/[0-9]/g, function(d){ return map[d]; });
+  }
+  function formatFreq(khz){
+    if (!khz || isNaN(khz)) return "—";
+    var mhz = Math.round(khz / 1000);
+    return faDigits(mhz) + " مگاهرتز";
+  }
+
+  var GOV_META = {
+    performance:  { desc:"حداکثر کارایی؛ قفل فرکانس CPU و GPU روی بالاترین مقدار", profile:"warm" },
+    powersave:    { desc:"حداکثر صرفه‌جویی در مصرف انرژی",        profile:"cool" },
+    ondemand:     { desc:"افزایش پویا بر اساس بار لحظه‌ای",       profile:"cool" },
+    conservative: { desc:"صرفه‌جو با افزایش تدریجی فرکانس",       profile:"cool" },
+    schedutil:    { desc:"هوشمند و مبتنی بر زمان‌بند هسته",       profile:"balanced" },
+    interactive:  { desc:"واکنش‌گرا برای تجربه تعاملی روان",      profile:"balanced" },
+    userspace:    { desc:"کنترل دستی فرکانس توسط کاربر",         profile:"warm" },
+    walt:         { desc:"مبتنی بر بار پنجره‌ای زمان‌بند",        profile:"balanced" },
+    hybrid:       { desc:"ترکیبی از چند راهبرد زمان‌بندی",        profile:"balanced" }
+  };
+  function govMeta(name){
+    return GOV_META[name] || { desc:"گاورنر سفارشی دستگاه", profile:"balanced" };
+  }
+  var COOL_SET = ["powersave","conservative","ondemand","low_power"];
+  var WARM_SET = ["performance","userspace","turbo","sportsmode"];
+  function classifyProfile(gov){
+    if (!gov) return "balanced";
+    var g = gov.toLowerCase();
+    if (COOL_SET.indexOf(g) !== -1) return "cool";
+    if (WARM_SET.indexOf(g) !== -1) return "warm";
+    if (GOV_META[g]) return GOV_META[g].profile;
+    return "balanced";
+  }
+  var CLUSTER_COLORS = ["#8b7cf6","#22d3ee","#fb923c","#34d399","#f472b6","#facc15"];
+
+  /* =========================================================
+     3) وضعیت برنامه
+  ========================================================= */
+  var state = {
+    cores: [],
+    clusterCount: 0,
+    majorityGovernor: null,
+    mismatched: [],
+    availableGovernors: [],
+    availableGovernorsSet: {},
+    connected: false,
+    locked: false,
+    gpu: { supported: false, method: "none" }
+  };
+  var lastRenderedGov = null;
+  var detailsOpen = false;
+
+  /* =========================================================
+     3-b) کتابخانه‌ی شل مشترک: پروب GPU + قفل/بازگردانی فرکانس
+     همان منطق service.sh، برای اجرای آنی از طریق WebUI
+  ========================================================= */
+  var SHELL_LIB = [
+    'gpu_probe() {',
+    ' GPU_METHOD=""; GPU_PATH="";',
+    ' if [ -e /proc/gpufreqv2/fix_target_opp_freq ]; then GPU_METHOD="gpufreqv2"; GPU_PATH="/proc/gpufreqv2/fix_target_opp_freq"; return 0; fi;',
+    ' if [ -e /sys/kernel/ged/hal/current_freq ]; then GPU_METHOD="ged"; GPU_PATH="/sys/kernel/ged/hal/current_freq"; return 0; fi;',
+    ' for d in /sys/class/devfreq/*; do',
+    '  [ -e "$d" ] || continue;',
+    '  bn=$(basename "$d");',
+    '  case "$bn" in',
+    '   *gpu*|*GPU*|*mfg*|*MFG*) if [ -e "$d/governor" ]; then GPU_METHOD="devfreq"; GPU_PATH="$d"; return 0; fi ;;',
+    '  esac;',
+    ' done;',
+    ' return 1;',
+    '}',
+    'gpu_lock_max() {',
+    ' gpu_probe || return 1;',
+    ' case "$GPU_METHOD" in',
+    '  gpufreqv2) echo 0 > "$GPU_PATH" 2>/dev/null ;;',
+    '  ged) MAXF=$(cat /proc/gpufreq/gpufreq_opp_freq 2>/dev/null | awk "NR==1{print \\$1}"); [ -z "$MAXF" ] && MAXF=9999999; echo "$MAXF" > "$GPU_PATH" 2>/dev/null ;;',
+    '  devfreq) MAXF=$(cat "$GPU_PATH/available_frequencies" 2>/dev/null | tr " " "\\n" | sort -n | tail -1);',
+    '   if [ -n "$MAXF" ]; then echo userspace > "$GPU_PATH/governor" 2>/dev/null; echo "$MAXF" > "$GPU_PATH/max_freq" 2>/dev/null; echo "$MAXF" > "$GPU_PATH/min_freq" 2>/dev/null; [ -e "$GPU_PATH/userspace/set_freq" ] && echo "$MAXF" > "$GPU_PATH/userspace/set_freq" 2>/dev/null; fi ;;',
+    ' esac;',
+    ' return 0;',
+    '}',
+    'gpu_reset() {',
+    ' gpu_probe || return 1;',
+    ' case "$GPU_METHOD" in',
+    '  gpufreqv2) echo -1 > "$GPU_PATH" 2>/dev/null ;;',
+    '  ged) echo 0 > "$GPU_PATH" 2>/dev/null ;;',
+    '  devfreq) MINF=$(cat "$GPU_PATH/available_frequencies" 2>/dev/null | tr " " "\\n" | sort -n | head -1);',
+    '   MAXF=$(cat "$GPU_PATH/available_frequencies" 2>/dev/null | tr " " "\\n" | sort -n | tail -1);',
+    '   [ -n "$MINF" ] && echo "$MINF" > "$GPU_PATH/min_freq" 2>/dev/null;',
+    '   [ -n "$MAXF" ] && echo "$MAXF" > "$GPU_PATH/max_freq" 2>/dev/null;',
+    '   DEFGOV=$(cat "$GPU_PATH/available_governors" 2>/dev/null | tr " " "\\n" | grep -v userspace | head -1);',
+    '   [ -z "$DEFGOV" ] && DEFGOV="simple_ondemand";',
+    '   echo "$DEFGOV" > "$GPU_PATH/governor" 2>/dev/null ;;',
+    ' esac;',
+    ' return 0;',
+    '}',
+    'cpu_online_all() {',
+    ' for c in /sys/devices/system/cpu/cpu[0-9]*; do',
+    '  [ -d "$c" ] || continue;',
+    '  op="$c/online";',
+    '  if [ -f "$op" ]; then',
+    '   st=$(cat "$op" 2>/dev/null);',
+    '   [ "$st" = "0" ] && echo 1 > "$op" 2>/dev/null;',
+    '  fi;',
+    ' done;',
+    '}',
+    'cpu_lock_max() {',
+    ' cpu_online_all;',
+    ' for c in /sys/devices/system/cpu/cpu*/cpufreq; do',
+    '  [ -d "$c" ] || continue;',
+    '  A=$(cat "$c/scaling_available_frequencies" 2>/dev/null | tr " " "\\n" | sort -n | tail -1);',
+    '  B=$(cat "$c/cpuinfo_max_freq" 2>/dev/null);',
+    '  MAXF="$A";',
+    '  if [ -n "$B" ]; then',
+    '   if [ -z "$MAXF" ] || [ "$B" -gt "$MAXF" ]; then MAXF="$B"; fi;',
+    '  fi;',
+    '  [ -n "$MAXF" ] || continue;',
+    '  echo "$MAXF" > "$c/scaling_max_freq" 2>/dev/null;',
+    '  echo "$MAXF" > "$c/scaling_min_freq" 2>/dev/null;',
+    ' done;',
+    '}',
+    'cpu_reset() {',
+    ' for c in /sys/devices/system/cpu/cpu*/cpufreq; do',
+    '  [ -d "$c" ] || continue;',
+    '  MINF=$(cat "$c/cpuinfo_min_freq" 2>/dev/null);',
+    '  MAXF=$(cat "$c/cpuinfo_max_freq" 2>/dev/null);',
+    '  [ -n "$MINF" ] && echo "$MINF" > "$c/scaling_min_freq" 2>/dev/null;',
+    '  [ -n "$MAXF" ] && echo "$MAXF" > "$c/scaling_max_freq" 2>/dev/null;',
+    ' done;',
+    '}'
+  ].join("\n");
+
+  /* =========================================================
+     4) اسکن هسته‌های پردازنده
+  ========================================================= */
+  var SCAN_CMD = [
+    SHELL_LIB,
+    'cpu_online_all',
+    'if gpu_probe; then echo "GPU::1::$GPU_METHOD::$GPU_PATH"; else echo "GPU::0::none::"; fi',
+    'for cpu in /sys/devices/system/cpu/cpu[0-9]*; do',
+    ' n=$(basename "$cpu");',
+    ' gp="$cpu/cpufreq/scaling_governor";',
+    ' if [ -f "$gp" ]; then',
+    '  cur=$(cat "$gp" 2>/dev/null);',
+    '  avail=$(cat "$cpu/cpufreq/scaling_available_governors" 2>/dev/null);',
+    '  curf=$(cat "$cpu/cpufreq/scaling_cur_freq" 2>/dev/null);',
+    '  minf=$(cat "$cpu/cpufreq/cpuinfo_min_freq" 2>/dev/null);',
+    '  maxf=$(cat "$cpu/cpufreq/cpuinfo_max_freq" 2>/dev/null);',
+    '  smin=$(cat "$cpu/cpufreq/scaling_min_freq" 2>/dev/null);',
+    '  smax=$(cat "$cpu/cpufreq/scaling_max_freq" 2>/dev/null);',
+    '  echo "CORE::$n::$cur::$avail::$curf::$minf::$maxf::$smin::$smax";',
+    ' fi;',
+    'done'
+  ].join("\n");
+
+  function parseGpuLine(stdout){
+    var m = /^GPU::(\d)::([^:]*)::(.*)$/m.exec(stdout);
+    if (!m) return { supported: false, method: "none", path: "" };
+    return { supported: m[1] === "1", method: m[2] || "none", path: m[3] || "" };
+  }
+
+  function parseScan(stdout){
+    var lines = stdout.split("\n");
+    var cores = [];
+    for (var i = 0; i < lines.length; i++){
+      var line = lines[i];
+      if (line.indexOf("CORE::") !== 0) continue;
+      var parts = line.split("::");
+      if (parts.length < 7) continue;
+      var idMatch = /cpu(\d+)/.exec(parts[1]);
+      var avail = (parts[3] || "").split(/\s+/).filter(Boolean);
+      var scalingMin = parseInt(parts[7], 10) || 0;
+      var scalingMax = parseInt(parts[8], 10) || 0;
+      cores.push({
+        id: idMatch ? parseInt(idMatch[1], 10) : 0,
+        governor: (parts[2] || "").trim(),
+        available: avail,
+        curFreq: parseInt(parts[4], 10) || 0,
+        minFreq: parseInt(parts[5], 10) || 0,
+        maxFreq: parseInt(parts[6], 10) || 0,
+        scalingMin: scalingMin,
+        scalingMax: scalingMax,
+        locked: !!(scalingMin && scalingMax && scalingMin === scalingMax)
+      });
+    }
+    return cores;
+  }
+
+  function processCores(rawCores){
+    var cores = rawCores.slice().sort(function(a,b){ return a.id - b.id; });
+
+    var sigMap = {}, clusterCounter = 0;
+    cores.forEach(function(c){
+      var sig = c.minFreq + "-" + c.maxFreq;
+      if (!(sig in sigMap)) sigMap[sig] = clusterCounter++;
+      c.cluster = sigMap[sig];
+    });
+
+    var counts = {};
+    cores.forEach(function(c){ counts[c.governor] = (counts[c.governor] || 0) + 1; });
+    var majority = null, best = -1;
+    cores.forEach(function(c){
+      var cnt = counts[c.governor];
+      if (cnt > best){ best = cnt; majority = c.governor; }
+    });
+
+    var mismatched = cores.filter(function(c){ return c.governor !== majority; });
+
+    var priority = ["schedutil","performance","powersave","ondemand","conservative","interactive","userspace"];
+    var uniqSet = {};
+    cores.forEach(function(c){ c.available.forEach(function(g){ uniqSet[g] = true; }); });
+    var union = Object.keys(uniqSet).sort(function(a,b){
+      var pa = priority.indexOf(a), pb = priority.indexOf(b);
+      if (pa === -1 && pb === -1) return a.localeCompare(b);
+      if (pa === -1) return 1;
+      if (pb === -1) return -1;
+      return pa - pb;
+    });
+
+    state.cores = cores;
+    state.clusterCount = clusterCounter || 1;
+    state.majorityGovernor = majority;
+    state.mismatched = mismatched;
+    state.availableGovernors = union;
+    state.availableGovernorsSet = uniqSet;
+
+    render();
+  }
+
+  /* =========================================================
+     5) داده نمایشی برای زمانی که ksu در دسترس نیست
+  ========================================================= */
+  function loadDemoData(){
+    var demoCores = [
+      { id:0, governor:"schedutil", available:["schedutil","performance","powersave","ondemand","conservative","userspace"], curFreq:998000, minFreq:300000, maxFreq:1800000, scalingMin:300000, scalingMax:1800000 },
+      { id:1, governor:"schedutil", available:["schedutil","performance","powersave","ondemand","conservative","userspace"], curFreq:998000, minFreq:300000, maxFreq:1800000, scalingMin:300000, scalingMax:1800000 },
+      { id:2, governor:"schedutil", available:["schedutil","performance","powersave","ondemand","conservative","userspace"], curFreq:1017000, minFreq:300000, maxFreq:1800000, scalingMin:300000, scalingMax:1800000 },
+      { id:3, governor:"schedutil", available:["schedutil","performance","powersave","ondemand","conservative","userspace"], curFreq:998000, minFreq:300000, maxFreq:1800000, scalingMin:300000, scalingMax:1800000 },
+      { id:4, governor:"schedutil", available:["schedutil","performance","powersave","ondemand","conservative","userspace"], curFreq:1401000, minFreq:400000, maxFreq:2400000, scalingMin:400000, scalingMax:2400000 },
+      { id:5, governor:"schedutil", available:["schedutil","performance","powersave","ondemand","conservative","userspace"], curFreq:1401000, minFreq:400000, maxFreq:2400000, scalingMin:400000, scalingMax:2400000 },
+      { id:6, governor:"schedutil", available:["schedutil","performance","powersave","ondemand","conservative","userspace"], curFreq:1401000, minFreq:400000, maxFreq:2400000, scalingMin:400000, scalingMax:2400000 },
+      { id:7, governor:"performance", available:["schedutil","performance","powersave","ondemand","conservative","userspace"], curFreq:3000000, minFreq:500000, maxFreq:3000000, scalingMin:3000000, scalingMax:3000000 }
+    ];
+    demoCores.forEach(function(c){ c.locked = !!(c.scalingMin && c.scalingMax && c.scalingMin === c.scalingMax); });
+    state.gpu = { supported: true, method: "gpufreqv2 (شبیه‌سازی)", path: "/proc/gpufreqv2/fix_target_opp_freq" };
+    processCores(demoCores);
+  }
+
+  /* =========================================================
+     6) اسکن / اعمال از طریق شل
+  ========================================================= */
+  function scanCpu(){
+    setRefreshSpinning(true);
+    var startedAt = Date.now();
+    var MIN_SPIN_MS = 500; // حداقل مدت چرخش قابل مشاهده، حتی اگه پاسخ فوری برگرده
+    return execShell(SCAN_CMD, 10000).then(function(res){
+      var cores = parseScan(res.stdout);
+      if (!cores.length) throw new Error("EMPTY");
+      state.connected = true;
+      state.gpu = parseGpuLine(res.stdout);
+      processCores(cores);
+    }).catch(function(err){
+      if (err.message === "NO_KSU_BRIDGE"){
+        state.connected = false;
+        if (!state.cores.length) loadDemoData();
+      } else {
+        handleExecError(err, "اسکن هسته‌ها");
+        if (!state.cores.length) loadDemoData();
+      }
+    }).finally(function(){
+      var elapsed = Date.now() - startedAt;
+      var remaining = Math.max(0, MIN_SPIN_MS - elapsed);
+      return new Promise(function(resolve){
+        setTimeout(function(){
+          updateConnBadge();
+          setRefreshSpinning(false);
+          updateLastUpdate();
+          hideInitLoader();
+          resolve();
+        }, remaining);
+      });
+    });
+  }
+
+  function applyGovernor(gov){
+    if (!/^[a-z0-9_\-]+$/i.test(gov)) return Promise.resolve();
+
+    if (!hasKsu()){
+      var wasPerformance = state.majorityGovernor === "performance";
+      var goingPerformance = gov === "performance";
+      showToast("🧪 (حالت نمایشی) گاورنر «" + gov + "» به‌صورت شبیه‌سازی اعمال شد", "success");
+      if (goingPerformance){
+        showToast("🔒 (شبیه‌سازی) فرکانس CPU/GPU روی بالاترین مقدار قفل شد", "success");
+      } else if (wasPerformance){
+        showToast("↩️ (شبیه‌سازی) فرکانس CPU/GPU به مقدار پیش‌فرض بازگردانده شد", "success");
+      }
+      return new Promise(function(resolve){
+        setTimeout(function(){
+          state.cores.forEach(function(c){
+            c.governor = gov;
+            if (goingPerformance){
+              c.scalingMin = c.maxFreq;
+              c.scalingMax = c.maxFreq;
+            } else if (wasPerformance){
+              c.scalingMin = c.minFreq;
+              c.scalingMax = c.maxFreq;
+            }
+            c.locked = !!(c.scalingMin && c.scalingMax && c.scalingMin === c.scalingMax);
+          });
+          processCores(state.cores);
+          resolve();
+        }, 650);
+      });
+    }
+
+    // خواندن گاورنر فعلی مستقیماً از sysfs (نه از حافظه/state) پیش از هرگونه تغییر
+    var cmd = [
+      SHELL_LIB,
+      'GOVNEW="' + gov + '"',
+      'PREV_GOV=""',
+      'for c in /sys/devices/system/cpu/cpu*/cpufreq; do',
+      ' if [ -f "$c/scaling_governor" ]; then PREV_GOV=$(cat "$c/scaling_governor" 2>/dev/null); break; fi;',
+      'done',
+      'RC=0; OK=""; FAIL=""',
+      'for cpu in /sys/devices/system/cpu/cpu[0-9]*; do',
+      ' p="$cpu/cpufreq/scaling_governor";',
+      ' n=$(basename "$cpu");',
+      ' if [ -f "$p" ]; then',
+      '  if echo "$GOVNEW" > "$p" 2>/dev/null; then OK="$OK $n"; else FAIL="$FAIL $n"; RC=1; fi;',
+      ' fi;',
+      'done',
+      'GPUWARN=0',
+      'if [ "$GOVNEW" = "performance" ]; then',
+      ' cpu_lock_max;',
+      ' gpu_lock_max || GPUWARN=1;',
+      'else',
+      ' if [ "$PREV_GOV" = "performance" ]; then',
+      '  cpu_reset;',
+      '  gpu_reset >/dev/null 2>&1;',
+      ' fi;',
+      'fi',
+      'mkdir -p /data/adb/cpu_governor_manager 2>/dev/null',
+      'echo "$GOVNEW" > /data/adb/cpu_governor_manager/governor.conf 2>/dev/null',
+      'echo "PREV::$PREV_GOV"',
+      'echo "GPUWARN::$GPUWARN"',
+      'echo "RC::$RC"',
+      'echo "OK:$OK|FAIL:$FAIL"'
+    ].join("\n");
+
+    return execShell(cmd, 9000).then(function(res){
+      var out = res.stdout;
+      var ok = /RC::0/.test(out);
+      var gpuWarn = /GPUWARN::1/.test(out);
+
+      if (ok){
+        showToast("گاورنر «" + gov + "» با موفقیت روی همه هسته‌ها اعمال شد ✅", "success");
+        nativeToast("گاورنر " + gov + " اعمال شد");
+        if (gov === "performance"){
+          if (gpuWarn){
+            showToast("⚠️ فرکانس CPU قفل شد؛ کنترل GPU روی این دستگاه پشتیبانی نمی‌شود", "error");
+            nativeToast("قفل CPU اعمال شد؛ GPU پشتیبانی نمی‌شود");
+          } else {
+            showToast("🔒 فرکانس CPU و GPU روی بالاترین مقدار قفل شد", "success");
+          }
+        }
+      } else {
+        showToast("اعمال گاورنر روی برخی هسته‌ها با خطا مواجه شد ⚠️", "error");
+        nativeToast("خطا در اعمال گاورنر " + gov);
+      }
+    }).catch(function(err){
+      handleExecError(err, "اعمال گاورنر");
+    });
+  }
+
+  function handleExecError(err, context){
+    var msg;
+    if (err.message === "TIMEOUT"){
+      msg = "زمان اجرای دستور برای «" + context + "» به پایان رسید (Timeout).";
+    } else if (err.message === "EXEC_ERROR"){
+      msg = "خطا در " + context + " (کد " + err.errno + ")" + (err.stderr ? "：" + err.stderr : "");
+    } else if (err.message === "NO_KSU_BRIDGE"){
+      return;
+    } else {
+      msg = "خطای ناشناخته در " + context + ".";
+    }
+    showToast(msg, "error");
+    nativeToast(msg);
+  }
+
+  /* =========================================================
+     7) رندر رابط کاربری
+  ========================================================= */
+  function updateHeaderTheme(gov){
+    var profile = classifyProfile(gov);
+    document.documentElement.setAttribute("data-profile", profile);
+  }
+
+  function render(){
+    renderStatusCard();
+    renderChips();
+    renderGovGrid();
+    renderCoreGrid();
+  }
+
+  function renderStatusCard(){
+    var heroEl = document.getElementById("heroGov");
+    var subEl = document.getElementById("heroSub");
+    var clusterEl = document.getElementById("clusterSummary");
+    var gov = state.majorityGovernor || "—";
+
+    heroEl.textContent = gov;
+    if (lastRenderedGov !== null && lastRenderedGov !== gov){
+      heroEl.classList.remove("value-changed");
+      void heroEl.offsetWidth;
+      heroEl.classList.add("value-changed");
+    }
+    lastRenderedGov = gov;
+
+    var meta = govMeta(gov);
+    var desc = meta.desc;
+    if (gov === "performance" && !state.gpu.supported){
+      desc += " — کنترل GPU روی این دستگاه پشتیبانی نمی‌شود";
+    }
+    subEl.textContent = desc;
+
+    var lockedCount = state.cores.filter(function(c){ return c.locked; }).length;
+    var summary = faDigits(state.cores.length) + " هسته · " + faDigits(state.clusterCount) + " خوشه پردازشی";
+    if (lockedCount) summary += " · " + faDigits(lockedCount) + " هسته قفل";
+    clusterEl.textContent = summary;
+
+    updateHeaderTheme(gov);
+  }
+
+  function renderChips(){
+    var row = document.getElementById("chipsRow");
+    row.innerHTML = "";
+
+    var gpuChip = document.createElement("span");
+    if (state.gpu.supported){
+      gpuChip.className = "chip ok";
+      gpuChip.innerHTML = "🎮 GPU：<b>" + state.gpu.method + "</b>";
+    } else {
+      gpuChip.className = "chip warn";
+      gpuChip.innerHTML = "🎮 GPU：<b>پشتیبانی نمی‌شود</b>";
+    }
+    row.appendChild(gpuChip);
+
+    if (!state.mismatched.length){
+      var okChip = document.createElement("span");
+      okChip.className = "chip ok";
+      okChip.innerHTML = "✓ همه هسته‌ها هماهنگ‌اند";
+      row.appendChild(okChip);
+      return;
+    }
+    state.mismatched.forEach(function(c){
+      var chip = document.createElement("span");
+      chip.className = "chip warn";
+      chip.innerHTML = "⚠ هسته " + faDigits(c.id) + "：<b>" + c.governor + "</b>";
+      row.appendChild(chip);
+    });
+  }
+
+  function renderGovGrid(){
+    var grid = document.getElementById("govGrid");
+    grid.innerHTML = "";
+    if (!state.availableGovernors.length){
+      grid.innerHTML = '<div style="color:var(--text-3);font-size:13px;padding:8px;">گاورنری یافت نشد</div>';
+      return;
+    }
+    state.availableGovernors.forEach(function(gov){
+      var meta = govMeta(gov);
+      var isActive = gov === state.majorityGovernor;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "gov-btn" + (isActive ? " active" : "");
+      btn.setAttribute("data-gov", gov);
+
+      var topRow = document.createElement("div");
+      topRow.className = "top-row";
+
+      var dot = document.createElement("span");
+      dot.className = "gov-dot " + meta.profile;
+
+      var rightSlot = document.createElement("span");
+      if (isActive){
+        rightSlot.className = "gov-check";
+        rightSlot.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      }
+
+      topRow.appendChild(dot);
+      topRow.appendChild(rightSlot);
+
+      var nameEl = document.createElement("div");
+      nameEl.className = "gov-name";
+      nameEl.textContent = gov;
+
+      var descEl = document.createElement("div");
+      descEl.className = "gov-desc";
+      descEl.textContent = meta.desc;
+
+      btn.appendChild(topRow);
+      btn.appendChild(nameEl);
+      btn.appendChild(descEl);
+
+      btn.addEventListener("click", function(){ onGovClick(gov, btn); });
+      grid.appendChild(btn);
+    });
+  }
+
+  function renderCoreGrid(){
+    var grid = document.getElementById("coreGrid");
+    grid.innerHTML = "";
+    state.cores.forEach(function(c){
+      var item = document.createElement("div");
+      var mismatch = c.governor !== state.majorityGovernor;
+      item.className = "core-item" + (mismatch ? " mismatch" : "");
+      item.style.setProperty("--cluster-color", CLUSTER_COLORS[c.cluster % CLUSTER_COLORS.length]);
+      var freqLine = c.locked
+        ? "🔒 قفل روی " + formatFreq(c.scalingMax)
+        : formatFreq(c.minFreq) + ' — ' + formatFreq(c.maxFreq);
+      item.innerHTML =
+        '<div class="cid">هسته ' + faDigits(c.id) + ' · خوشه ' + faDigits(c.cluster) + (mismatch ? " ⚠" : "") + '</div>' +
+        '<div class="cgov">' + c.governor + '</div>' +
+        '<div class="cfreq">' + freqLine + '</div>';
+      grid.appendChild(item);
+    });
+  }
+
+  function updateConnBadge(){
+    var badge = document.getElementById("connBadge");
+    var text = document.getElementById("connText");
+    var banner = document.getElementById("demoBanner");
+    if (state.connected){
+      badge.className = "conn-badge on";
+      text.textContent = "متصل به KernelSU";
+      banner.classList.remove("show");
+    } else {
+      badge.className = "conn-badge off";
+      text.textContent = "حالت نمایشی";
+      banner.classList.add("show");
+    }
+  }
+
+  function updateLastUpdate(){
+    var el = document.getElementById("lastUpdate");
+    var now = new Date();
+    var h = now.getHours(), m = now.getMinutes();
+    var hh = (h < 10 ? "0" + h : "" + h);
+    var mm = (m < 10 ? "0" + m : "" + m);
+    el.textContent = "آخرین بروزرسانی: " + faDigits(hh) + ":" + faDigits(mm);
+  }
+
+  function hideInitLoader(){
+    document.getElementById("initLoader").classList.add("hide");
+  }
+
+  /* ---------- Toast (in-page) ---------- */
+  function showToast(msg, type){
+    var stack = document.getElementById("toastStack");
+    var t = document.createElement("div");
+    t.className = "toast" + (type ? " " + type : "");
+    t.textContent = msg;
+    stack.appendChild(t);
+    setTimeout(function(){
+      t.style.transition = "opacity .3s ease, transform .3s ease";
+      t.style.opacity = "0";
+      t.style.transform = "translateY(-6px)";
+      setTimeout(function(){ t.remove(); }, 320);
+    }, 3200);
+  }
+
+  /* ---------- چرخش اسپینر رفرش با JS (نه فقط CSS) ----------
+     برخی WebViewها (مثلاً وقتی گزینه «حذف انیمیشن‌ها»ی سامسونگ/
+     One UI فعال باشه) انیمیشن CSS رو بی‌صدا غیرفعال می‌کنن، حتی
+     بدون media query صریح. برای همین چرخش رو با requestAnimationFrame
+     و تغییر مستقیم transform انجام می‌دیم تا مستقل از تنظیمات
+     انیمیشن سیستم همیشه کار کنه. */
+  var spinRAF = null, spinAngle = 0, spinLastTs = null;
+  function spinStep(ts){
+    var wrap = document.getElementById("refreshIconWrap");
+    if (!wrap){ spinRAF = null; return; }
+    if (spinLastTs === null) spinLastTs = ts;
+    var dt = ts - spinLastTs;
+    spinLastTs = ts;
+    spinAngle = (spinAngle + dt * 0.45) % 360; // ~۰٫۸ ثانیه هر دور کامل
+    var t = "rotate(" + spinAngle + "deg)";
+    wrap.style.transform = t;
+    wrap.style.webkitTransform = t;
+    spinRAF = requestAnimationFrame(spinStep);
+  }
+  function startSpinLoop(){
+    if (spinRAF !== null) return;
+    spinLastTs = null;
+    spinRAF = requestAnimationFrame(spinStep);
+  }
+  function stopSpinLoop(){
+    if (spinRAF !== null){ cancelAnimationFrame(spinRAF); spinRAF = null; }
+    var wrap = document.getElementById("refreshIconWrap");
+    if (wrap){ wrap.style.transform = ""; wrap.style.webkitTransform = ""; }
+  }
+
+  /* =========================================================
+     8) قفل کردن رابط کاربری هنگام ارسال دستور
+  ========================================================= */
+  function lockUI(pendingGov){
+    state.locked = true;
+    document.getElementById("govGrid").classList.add("grid-busy");
+    document.getElementById("refreshBtn").disabled = true;
+    if (!pendingGov){
+      document.getElementById("refreshIconWrap").classList.add("spinning");
+      startSpinLoop();
+    }
+    if (pendingGov){
+      markButtonLoading(pendingGov, true);
+    }
+  }
+  function unlockUI(pendingGov){
+    state.locked = false;
+    document.getElementById("govGrid").classList.remove("grid-busy");
+    document.getElementById("refreshBtn").disabled = false;
+    document.getElementById("refreshIconWrap").classList.remove("spinning");
+    stopSpinLoop();
+    if (pendingGov){
+      markButtonLoading(pendingGov, false);
+    }
+  }
+  function markButtonLoading(gov, on){
+    var btn = document.querySelector('.gov-btn[data-gov="' + gov + '"]');
+    if (!btn) return;
+    var rightSlot = btn.querySelector(".top-row span:last-child");
+    if (!rightSlot) return;
+    if (on){
+      rightSlot.className = "gov-spinner";
+      rightSlot.innerHTML = "";
+    }
+  }
+
+  function setRefreshSpinning(on){
+    var wrap = document.getElementById("refreshIconWrap");
+    if (on){
+      wrap.classList.add("spinning");
+      startSpinLoop();
+    } else if (!state.locked){
+      wrap.classList.remove("spinning");
+      stopSpinLoop();
+    }
+  }
+
+  function onGovClick(gov, btn){
+    if (state.locked) return;
+    lockUI(gov);
+    applyGovernor(gov).then(function(){
+      return scanCpu();
+    }).finally(function(){
+      unlockUI(gov);
+    });
+  }
+
+  /* =========================================================
+     9) رویدادها و راه‌اندازی اولیه
+  ========================================================= */
+  function bindEvents(){
+    document.getElementById("refreshBtn").addEventListener("click", function(){
+      if (state.locked) return;
+      lockUI(null);
+      scanCpu().finally(function(){ unlockUI(null); });
+    });
+
+    var toggleBtn = document.getElementById("detailsToggle");
+    var panel = document.getElementById("coreDetails");
+    toggleBtn.addEventListener("click", function(){
+      detailsOpen = !detailsOpen;
+      toggleBtn.classList.toggle("open", detailsOpen);
+      panel.classList.toggle("open", detailsOpen);
+    });
+  }
+
+  function preventCopyGestures(){
+    // جلوگیری از انتخاب متن، منوی کپی و کلیک راست/فشار طولانی روی کل رابط کاربری
+    document.addEventListener("contextmenu", function(e){ e.preventDefault(); }, { passive:false });
+    document.addEventListener("selectstart", function(e){ e.preventDefault(); }, { passive:false });
+    document.addEventListener("copy", function(e){ e.preventDefault(); }, { passive:false });
+    document.addEventListener("dragstart", function(e){ e.preventDefault(); }, { passive:false });
+    document.addEventListener("gesturestart", function(e){ e.preventDefault(); }, { passive:false });
+    var lastTouchEnd = 0;
+    document.addEventListener("touchend", function(e){
+      var now = Date.now();
+      if (now - lastTouchEnd <= 350){ e.preventDefault(); }
+      lastTouchEnd = now;
+    }, { passive:false });
+  }
+
+  function init(){
+    bindEvents();
+    preventCopyGestures();
+    updateConnBadge();
+    scanCpu();
+  }
+
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+</body>
+</html>

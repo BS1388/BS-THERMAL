@@ -1,0 +1,7 @@
+id=BS_THERMAL
+name=BS THERMAL
+version=V1.5.9 [BeTa] 
+versionCode=159
+author=@Babak1388
+description=Disables Thermal Zone and Disable [PPM/GPU limits]
+device=Universal
